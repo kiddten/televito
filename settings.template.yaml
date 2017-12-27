@@ -1,0 +1,6 @@
+flats_url: request_url
+full_url: ad_url
+
+bot_token: 325132:jlLLJkjJTRGFHJGfghfj
+debug: True
+logging_level: DEBUG
