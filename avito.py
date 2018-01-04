@@ -1,3 +1,4 @@
+import collections
 import logging
 import os
 import random
@@ -26,6 +27,9 @@ else:
 logging.debug('>>> Bot is started!\n')
 
 
+Flat = collections.namedtuple('Flat', 'address price pic link')
+
+
 def get_last_id():
     if os.stat('lastid.flat').st_size == 0:
         return
@@ -44,7 +48,15 @@ def find_new_flats(link):
     response = requests.get(link, headers=headers)
     doc = lxml.html.fromstring(response.content)
     flats = doc.xpath('/html/body/section/article')
-    flats_id = [flat.xpath('div/a/@href')[0].split('/')[-1] for flat in flats]
+    flats_list = []
+    for flat in flats:
+        pic_xpath = """substring-before(substring-after(div/a/div[@class="item-img "]/span/@style, "background-image: url(//"), ")")"""
+        pic = flat.xpath(pic_xpath).replace('140x105', '640x480')
+        address = flat.xpath('div/a/div[@class="item-info"]/span[@class="info-address info-text"]')[0].text
+        price = flat.xpath('div/a/div[@class="item-price"]/span')[0].text
+        link = flat.xpath('div/a/@href')[0].split('/')[-1]
+        flats_list.append(Flat(address, price, pic, link))
+    flats_id = [flat.link for flat in flats_list]
     save_last_id(flats_id[0])
     try:
         index = flats_id.index(last_id)
@@ -52,10 +64,10 @@ def find_new_flats(link):
         # Either last_id is None or last_id doesn't present on last page
         # Don't care about last case for a while
         logging.debug('Initialization!')
-        return flats_id, True
+        return flats_list, True
     if index != 0:
         logging.debug('{} new item(s)'.format(index))
-        return flats_id[0:index], False
+        return flats_list[0:index], False
     logging.debug('There are no new items!')
     return None, False
 
@@ -64,11 +76,18 @@ def run(bot, update, job_queue):
     chat_id = update.message.chat_id
     flats, first_run = find_new_flats(conf.flats_url)
 
-    def notify(flats):
+    def notify(flats, count=True):
         if flats:
-            bot.send_message(chat_id, text='{} new flat(s)'.format(len(flats)))
+            if count:
+                bot.send_message(chat_id, text='{} new flat(s)'.format(len(flats)))
             for flat in flats:
-                bot.send_message(chat_id, text=''.join((conf.full_url, flat)))
+                bot.send_photo(
+                    chat_id,
+                    flat.pic,
+                    caption='{}\n{}\n{}'.format(
+                        flat.address, flat.price, ''.join((conf.full_url, flat.link))
+                    )
+                )
 
     def task(bot, job=None):
         flats, _ = find_new_flats(conf.flats_url)
@@ -76,7 +95,7 @@ def run(bot, update, job_queue):
 
     if first_run:
         bot.send_message(chat_id, text='Started subscription from ==>')
-        bot.send_message(chat_id, text=''.join((conf.full_url, flats[0])))
+        notify((flats[0],), count=False)
     else:
         notify(flats)
     job_queue.run_repeating(
