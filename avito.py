@@ -27,7 +27,7 @@ else:
 logging.debug('>>> Bot is started!\n')
 
 
-Flat = collections.namedtuple('Flat', 'address price pic link')
+Flat = collections.namedtuple('Flat', 'description address price pic link')
 
 
 def get_last_id():
@@ -55,7 +55,8 @@ def find_new_flats(link):
         address = flat.xpath('div/a/div[@class="item-info"]/span[@class="info-address info-text"]')[0].text
         price = flat.xpath('div/a/div[@class="item-price"]/span')[0].text
         link = flat.xpath('div/a/@href')[0].split('/')[-1]
-        flats_list.append(Flat(address, price, pic, link))
+        description = flat.xpath('div/a/h3/span')[0].text_content()
+        flats_list.append(Flat(description, address, price, pic, link))
     flats_id = [flat.link for flat in flats_list]
     save_last_id(flats_id[0])
     try:
@@ -84,8 +85,8 @@ def run(bot, update, job_queue):
                 bot.send_photo(
                     chat_id,
                     flat.pic,
-                    caption='{}\n{}\n{}'.format(
-                        flat.address, flat.price, ''.join((conf.full_url, flat.link))
+                    caption='{}\n{}\n{}\n{}'.format(
+                        flat.description, flat.address, flat.price, ''.join((conf.full_url, flat.link))
                     )
                 )
 
